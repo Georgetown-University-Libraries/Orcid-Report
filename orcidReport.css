@@ -1,0 +1,29 @@
+.tableBlock {
+	float:left;
+	margin: 0 50px 20px 0;
+}
+
+.diffContainer.closed {
+	display:none;
+}
+
+.diffContainter {
+	display:block;
+	margin-left:30px;
+}
+
+hr {
+	clear:both;
+}
+
+table td, table th {
+	border: thin solid black;
+	padding: 4px;
+}
+
+td, th {
+    width: 100px;
+}
+table {
+	border-collapse: collapse;
+}
