@@ -13,6 +13,9 @@ while($entryName = readdir($orcidReportDirectory)) {
 }
 closedir($orcidReportDirectory);
 
+// Check for download arguments
+testArgs();
+
 header('Content-type: text/html; charset=UTF-8');
 ?>
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
@@ -205,7 +208,7 @@ function testArgs(){
     
     if (count($_POST) == 0) return;
     
-    $reportName = util::getPostArg("reportList","");
+    $reportName = (isset($_POST["reportList"]) ? $_POST["reportList"] : "");
     if ($reportName != "" && in_array($reportName,$orcidReportDirArray)) {
     	//open and read selected report
     	$inputReport = fopen("$orcidReportLoc/$reportName", "r");
