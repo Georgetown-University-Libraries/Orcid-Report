@@ -4,12 +4,19 @@ UTIL_URL="<CHANGE ME>"
 ORCID_BASE_DIR="<CHANGE ME>"
 REPORT_DIR="${ORCID_BASE_DIR}/reports"
 LOGS_DIR="${ORCID_BASE_DIR}/logs"
+
+#Preliminary checking/creation of base directories
+if [[ ! -d $ORCID_BASE_DIR ]]; then echo "ERR_SCRIPT|Could not find base directory ($ORCID_BASE_DIR). Please create and provide user read/write permissions."; exit 1; fi
+mkdir -p $REPORT_DIR
+mkdir -p $LOGS_DIR
+if [[ ! -d $REPORT_DIR ]]; then echo "ERR_SCRIPT|Cannot find/create reports directory. Please ensure that directory location is writable."; exit 1; fi
+if [[ ! -d $LOGS_DIR ]]; then echo "ERR_SCRIPT|Cannot find/create logs directory. Please ensure that directory location is writable."; exit 1; fi
+
 WORKING_FILE=$(mktemp ${ORCID_BASE_DIR}/orcidReport.XXXXXXXX.csv)
 read Y m d H M <<< $(date "+%Y %m %d %H %M")
 OUTPUT_REPORT="${REPORT_DIR}/orcidUsers_${Y}-${m}-${d}_${H}-${M}"
 OUTPUT_FORMAT=".csv"
 JOB_LOG="${LOGS_DIR}/orcidPull_${Y}-${m}-${d}_${H}-${M}.log"
-
 
 #Queries ORCID util to determine if user (provided via ORCID ID parameter) meets affiliation criteria. Returns user information if affiliated, empty string if not
 function validateUser {
@@ -38,17 +45,6 @@ function errorQuit {
 trap cleanup SIGHUP SIGINT SIGTERM
 
 jobPrint "===Orcid Report Data Pull on $(date)==="
-
-jobPrint "Validating reports directory -- $(date +%T)"
-#ensure reports/logs directory exists
-mkdir -p $REPORT_DIR
-if [[ $? -ne 0 ]]; then
-	errorQuit "Cannot find/create reports directory. Please ensure that directory location is writable."
-fi
-mkdir -p $LOGS_DIR
-if [[ $? -ne 0 ]]; then
-	errorQuit "Cannot find/create logs directory. Please ensure that directory location is writable."
-fi
 
 jobPrint "Validating application connection -- $(date +%T)"
 #test app connection
