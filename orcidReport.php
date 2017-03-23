@@ -122,19 +122,24 @@ for($i=count($newUserDiffsList)-1;$i>=0;$i--) {
 
 //tries to return prettily formated date name; returns input name if fails
 function getPrettyName($report) {
-	$sIndex = stripos($report,"_") + 1;
-	$eIndex = strrpos($report,"_");
-	$dateS = substr($report,$sIndex,$eIndex-$sIndex);
+	$dateStartIndex = stripos($report,"_") + 1;
+	$dateEndIndex = strrpos($report,"_");
+	$timeStartIndex = $dateEndIndex + 1;
+	$timeEndIndex = strrpos($report,"x");
+	$dateS = substr($report,$dateStartIndex,$dateEndIndex-$dateStartIndex);
+	$timeS = substr($report,$timeStartIndex,$timeEndIndex-$timeStartIndex);
 	if(strlen($dateS) != 10) return $report;
 	$format = "Y-m-d";
 	$date = DateTime::createFromFormat($format,$dateS);
-	return $date->format("M d, Y");
+	$time = str_replace("-",":",$timeS);
+	$prettyName = $date->format("M d, Y") . " (@$time)";
+	return $prettyName;
 }
 
 //get reference ID for report
 function getReportID($report) {
 	$sIndex = stripos($report,"_") + 1;
-	$eIndex = strrpos($report,"_");
+	$eIndex = strrpos($report,"x");
 	$dateS = substr($report,$sIndex,$eIndex-$sIndex);
 	return $dateS;
 }
