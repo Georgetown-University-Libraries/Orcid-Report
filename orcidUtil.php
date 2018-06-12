@@ -20,17 +20,17 @@ EOF;
 //call to ORCID API for base group of users that MAY be affiliated with configured institution
 function affiliationQuery($start,$rows) {
 	global $config;
-	$searchURIBase = $config['baseURI'] . 'search/orcid-bio/?q=';
-	$queryURI = $searchURIBase . $config['ringgoldID'] . '+AND+' . "'" . str_replace(' ', '+', $config['instName']) . "'&start=" . $start . "&rows=" . $rows;
+	$searchURIBase = $config['baseURI'] . 'search/?q=ringgold-org-id:';
+	$queryURI = $searchURIBase . $config['ringgoldID'] . "'&start=" . $start . "&rows=" . $rows;
 	
 	$result = orcidQuery($queryURI);
 	return $result;
 }
 
-//call to ORCID API for specified user's full ORCID profile
+//call to ORCID API for specified user's profile
 function profileQuery($orcidID) {
 	global $config;
-	$profScope = "/orcid-profile/";
+	$profScope = "/record";
 	$queryURI = $config['baseURI'] . $orcidID . $profScope;
 	
 	$result = orcidQuery($queryURI);
@@ -57,9 +57,9 @@ function orcidQuery($queryURI) {
 	//check success of ORCID API call
 	$queryRes = json_decode($result);
 	if($queryRes != null) {
-		$orcidErr = getSubProperty($queryRes,array('error-desc','value'),"None");
+		$orcidErr = getSubProperty($queryRes,'error-code',"None");
 		if($orcidErr !== "None") {
-			$errMsg = "Error with ORCID API: " . $orcidErr . " Attempted Query: $queryURI";
+			$errMsg = "Error with ORCID API: " . getSubProperty($queryRes,'developer-message',"No error message provided.") . " Attempted Query: $queryURI";
 			errorQuit("ERR_ORCID", $errMsg);
 		}
 	} else {
@@ -76,16 +76,16 @@ function getBaseAffiliatedUsers() {
 	global $config;
 	//get total count for query iteration
 	$queryRes = json_decode(affiliationQuery(0,1));
-	$totalCount = getSubProperty($queryRes,array('orcid-search-results','num-found'),0);
+	$totalCount = getSubProperty($queryRes,'num-found',0);
 	
 	//iteratively pull results in batches (size set in config file)
 	$numBatches = ceil($totalCount / $config['batchSize']);
 	$toReturn = "";
 	for($batch = 0; $batch < $numBatches; $batch++) {
 		$queryRes = json_decode(affiliationQuery(($batch*$config['batchSize']), $config['batchSize']));
-		$affUsers = getSubProperty($queryRes,array('orcid-search-results','orcid-search-result'),"");
+		$affUsers = getSubProperty($queryRes,'result',"");
 		foreach($affUsers as $user) {
-				$orcid = getSubProperty($user,array('orcid-profile','orcid-identifier','path'),"");
+				$orcid = getSubProperty($user,array('orcid-profile','path'),"");
 				$toReturn .= $orcid . ',';
 		}
 	}
@@ -97,35 +97,40 @@ function getBaseAffiliatedUsers() {
 function validateUser($orcidID) {
 	global $config;
 	$queryRes = json_decode(profileQuery($orcidID));
-	$errorMsg = getSubProperty($queryRes,array('error-desc','value'),"None");
+	$errorMsg = getSubProperty($queryRes,'error-code',"None");
 	if($errorMsg !== "None") {
+		$errorMsg = getSubProperty($queryRes,'developer-message',"No error message provided.");
 		errorQuit("ERR_ORCID_API", $errorMsg);
 	}
-	$affs = getSubProperty($queryRes,array('orcid-profile','orcid-activities','affiliations','affiliation'),array());
+	$edus = getSubProperty($queryRes,array('activities-summary','educations','education-summary'),array());
+	$empls = getSubProperty($queryRes,array('activities-summary','employments','employment-summary'),array());
 	$latestEmplAffil = NULL;
 	$latestEmplDate = "N/A";
 	$latestEduAffil = NULL;
 	$latestEduDate = "N/A";
 	
-	//cycle through affiliations to pull work/education information
-	foreach($affs as $aff) {
-		//if affiliation matches institutional identifier
-		if(getSubProperty($aff,array('organization','disambiguated-organization','disambiguated-organization-identifier'),"") == $config['ringgoldID']) {
-			//if employment affil...
-			if(strcasecmp(getSubProperty($aff,'type',""),"employment") === 0) {
-				$endDate = getAffilEndDate($aff);
-				if($latestEmplAffil == NULL || compareAffilDates($endDate,$latestEmplDate) == 1) {
-					$latestEmplAffil = $aff;
-					$latestEmplDate = $endDate;
-				}
+	//cycle through education
+	foreach($edus as $edu) {
+		$ringgold = getSubProperty($edu,array('organization','disambiguated-organization','disambiguated-organization-identifier'),"");
+		//if education matches target ringgold, get latest end date/education object
+		if($ringgold == $config['ringgoldID']) {
+			$endDate = getAffilEndDate($edu);
+			if($latestEduAffil == NULL || compareAffilDates($endDate,$latestEduDate) == 1) {
+				$latestEduAffil = $edu;
+				$latestEduDate = $endDate;
 			}
-			//else if education affil...
-			else if(strcasecmp(getSubProperty($aff,'type',""),"education") === 0) {
-				$endDate = getAffilEndDate($aff);
-				if($latestEduAffil == NULL || compareAffilDates($endDate,$latestEduDate) == 1) {
-					$latestEduAffil = $aff;
-					$latestEduDate = $endDate;
-				}
+		}
+	}
+	
+	//cycle through employment
+	foreach($empls as $empl) {
+		$ringgold = getSubProperty($empl,array('organization','disambiguated-organization','disambiguated-organization-identifier'),"");
+		//if employment matches target ringgold, get latest end date/employment object
+		if($ringgold == $config['ringgoldID']) {
+			$endDate = getAffilEndDate($empl);
+			if($latestEmplAffil == NULL || compareAffilDates($endDate,$latestEmplDate) == 1) {
+				$latestEmplAffil = $empl;
+				$latestEmplDate = $endDate;
 			}
 		}
 	}
@@ -149,13 +154,13 @@ function validateUser($orcidID) {
 		$title = (isset($latestEmplAffil)) ? $title : str_replace('"','',trim(getSubProperty($latestEduAffil,'role-title',"Unknown")));
 	}
 	
-	$modDate = getSubProperty($queryRes,array('orcid-profile','orcid-history','last-modified-date','value'),"");
+	$modDate = getSubProperty($queryRes,array('history','last-modified-date','value'),"");
 	//format date to be human-readable (date function expects seconds, JSON provides milliseconds, dropping last three digits to convert)
 	$modDate = (strlen($modDate) >= 10) ? date('m-d-Y', substr($modDate,0,10)) : "";
-	$path = getSubProperty($queryRes,array('orcid-profile','orcid-identifier','path'),"");
-	$uri = getSubProperty($queryRes,array('orcid-profile','orcid-identifier','uri'),"");
-	$firstName = trim(getSubProperty($queryRes,array('orcid-profile','orcid-bio','personal-details','given-names','value'),""));
-	$lastName = trim(getSubProperty($queryRes,array('orcid-profile','orcid-bio','personal-details','family-name','value'),""));
+	$path = getSubProperty($queryRes,array('orcid-identifier','path'),"");
+	$uri = getSubProperty($queryRes,array('orcid-identifier','uri'),"");
+	$firstName = trim(getSubProperty($queryRes,array('person','name','given-names','value'),""));
+	$lastName = trim(getSubProperty($queryRes,array('person','name','family-name','value'),""));
 	//if affil end dates are not special values, convert to easily readable format
 	$latestEmplDate = ($latestEmplDate != "Unknown" && $latestEmplDate != "Present" && $latestEmplDate != "N/A") ? $latestEmplDate->format('m-d-Y') : $latestEmplDate;
 	$latestEduDate = ($latestEduDate != "Unknown" && $latestEduDate != "Present" && $latestEduDate != "N/A") ? $latestEduDate->format('m-d-Y') : $latestEduDate;

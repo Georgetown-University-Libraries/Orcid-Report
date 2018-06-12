@@ -61,7 +61,7 @@ if [[ "${checkCode:0:3}" == "ERR" ]]; then
 	errorQuit "Could not pull base list due to following error: $checkCode"
 fi
 
-jobPrint "Validating $(cat $WORKING_FILE | tr "," "\n" | wc -l) potentially affiliated users -- $(date +%T)"
+jobPrint "Validating $(($(cat $WORKING_FILE | tr "," "\n" | wc -l) + 1)) potentially affiliated users -- $(date +%T)"
 #validate each ORCID user listed in the working file and print results to masterlog
 echo "ORCID,URL,Last Updated,Name,Title,Designation,Empl. End, Edu. End" > ${OUTPUT_REPORT}${OUTPUT_FORMAT}
 matchCount=0
